@@ -10,6 +10,10 @@ A Python application that automates streaming video site interactions and contro
 - Support for headless and headful browser modes
 - Asynchronous operation using asyncio
 
+## Todos
+- handle latecy
+- improve confidence
+
 ## Setup
 
 1. Install dependencies:
