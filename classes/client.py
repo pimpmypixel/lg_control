@@ -2,11 +2,13 @@ import asyncio
 import os
 import pickle
 import time
+from dotenv import load_dotenv
 from playwright.async_api import Playwright, async_playwright, expect
 from classes.detect.detect3 import LogoDetector
 
 class Client:
     def __init__(self):
+        load_dotenv()  # Load environment variables
         self.cookies_path = './storage/cookies.pkl'
         self.browser = None
         self.context = None
@@ -84,8 +86,8 @@ class Client:
             print("Need to log in")
             await self.page.get_by_role("link", name="Log ind").click()
             # await self.page.wait_for_selector("xpath=/html/body/div/div/div/div[3]/div[1]/form/div/div[1]/div/div/label/input", state="visible", timeout=5000)
-            await self.page.fill("xpath=/html/body/div/div/div/div[3]/div[1]/form/div/div[1]/div/div/label/input", "maisonhesseetmouna@gmail.com")
-            await self.page.fill("xpath=/html/body/div/div/div/div[3]/div[1]/form/div/div[2]/div/label/input", "2830Virum")
+            await self.page.fill("xpath=/html/body/div/div/div/div[3]/div[1]/form/div/div[1]/div/div/label/input", os.getenv('TV2_USERNAME'))
+            await self.page.fill("xpath=/html/body/div/div/div/div[3]/div[1]/form/div/div[2]/div/label/input", os.getenv('TV2_PASSWORD'))
             # await self.page.get_by_role("button", name="Log ind").click()
             time.sleep(1)
 
