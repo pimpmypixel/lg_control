@@ -23,12 +23,12 @@ class BaseClient(ABC):
             headless (bool): Whether to run the browser in headless mode
             roi_image (str): Path to the ROI image for logo detection
         """
-        print(f"Init client - Headless: {args.headless} - ROI image: {args.roi}")
+        print(f"Init client - Headless: {not args.no_headless} - ROI image: {args.roi}")
         playwright = await async_playwright().start()
 
         self.browser = await playwright.chromium.launch(
             channel="chrome",
-            headless=args.headless,
+            headless=not args.no_headless,
         )
 
         self.context = await self.browser.new_context(

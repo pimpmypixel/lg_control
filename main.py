@@ -6,8 +6,8 @@ from classes.tv.lg_controller import LGTVController
 
 def parse_args():
     parser = argparse.ArgumentParser(description='TV2 Client with configurable options')
-    parser.add_argument('--debug', action='store_true', default=True, help='Enable debug mode')
-    parser.add_argument('--headless', action='store_true', default=True, help='Run in headless mode')
+    parser.add_argument('--debug', action='store_true', default=False, help='Enable debug mode')
+    parser.add_argument('--no-headless', action='store_true', default=False, help='Run in headless mode')
     parser.add_argument('--roi', action='store_true', default=True, help='Enable ROI image')
     return parser.parse_args()
 
@@ -35,7 +35,6 @@ async def handle_messages(controller, args):
 
 async def main():
     args = parse_args()
-    print(args)
     try:
         client = Client()
         controller = LGTVController(ip_address=tv_ip,storage_path=storage_path)
