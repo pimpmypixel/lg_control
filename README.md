@@ -21,7 +21,12 @@ A Python application that automates streaming video site interactions and contro
 ./setup.sh
 ```
 
-2. Run the application:
+2. Edit .env
+```bash
+cp .env.example .env
+```
+
+3. Run the application:
 ```bash
 python main.py
 ```

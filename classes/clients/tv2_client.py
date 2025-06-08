@@ -4,65 +4,26 @@ import pickle
 import time
 from dotenv import load_dotenv
 from playwright.async_api import Playwright, async_playwright, expect
+from classes.clients.base_client import BaseClient
 from classes.detect.detect3 import LogoDetector
 
-class Client:
+class Client(BaseClient):
     def __init__(self):
-        load_dotenv()  # Load environment variables
+        super().__init__()
         self.cookies_path = './storage/cookies.pkl'
-        self.browser = None
-        self.context = None
-        self.page = None
         self.detector = None
+        self.app = None
         self.roi_image = None
 
-    async def initialize(self, headless, roi_image):
-        print(f"Init client - Headless: {headless} Image: {roi_image}")
+    async def initialize(self, app, headless, roi_image):
+        self.app = app
+        self.cookies_path = f"./storage/{self.app}.pkl"
         self.roi_image = roi_image
-        playwright = await async_playwright().start()
-        self.browser = await playwright.chromium.launch(
-            channel="chrome",
-            headless=headless,
-            args=['--app=https://play.tv2.dk/']
-        )
-
-        self.context = await self.browser.new_context(
-            user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            viewport={'width': 600, 'height': 338},  # 16:9 aspect ratio for 600px width
-            permissions=['notifications'],
-            ignore_https_errors=True,
-            java_script_enabled=True,
-            has_touch=False,
-            is_mobile=False,
-            locale='da-DK',
-            timezone_id='Europe/Copenhagen',
-            geolocation={'latitude': 55.676098, 'longitude': 12.568337},
-            color_scheme='dark',
-            reduced_motion='no-preference',
-            forced_colors='none',
-            accept_downloads=False,
-            extra_http_headers={
-                'Accept-Language': 'da-DK,en;q=0.9',
-            }
-        )
-
-        self.page = await self.context.new_page()
-        if not await self._load_cookies():
-            await self._handle_login()
+        await super().initialize(app, headless, roi_image)
         await self._start_stream()
-
-    async def _load_cookies(self):
-        if os.path.exists(self.cookies_path):
-            with open(self.cookies_path, 'rb') as f:
-                cookies = pickle.load(f)
-                print("Adding found cookies")
-                await self.context.add_cookies(cookies)
-                return True
-        else:
-            print("No cookies found")
-            return False
             
     async def _handle_login(self):
+        """Handle TV2-specific login process."""
         print("Init login")
         await self.page.goto('https://play.tv2.dk')
 
@@ -100,13 +61,14 @@ class Client:
         #     print("Already logged in")
 
     async def _start_stream(self):
+        """Start the TV2 NEWS stream and initialize logo detection."""
         time.sleep(1)
         await self.page.goto("https://play.tv2.dk/afspil/TV2NEWS")
         
         print("Start stream")
         # Mute
         try:
-            await self.page.locator('xpath=/html/body/div/div/div/div/div[3]/div[5]/div[1]/button[1]').wait_for(timeout=3000)
+            await self.page.locator('xpath=/html/body/div/div/div/div/div[3]/div[5]/div[1]/button[1]').wait_for(timeout=2000)
             print("Mute stream")
             await self.page.locator('xpath=/html/body/div/div/div/div/div[3]/div[5]/div[1]/button[1]').click()
         except Exception as e:
@@ -116,18 +78,3 @@ class Client:
         # Start logo detection
         self.detector = LogoDetector(roi_image=self.roi_image, roi_x=30, roi_y=10, roi_width=25, roi_height=25)
         await self.detector.start_detection(self.page)
-
-    async def run(self):
-        try:
-            while True:
-                await asyncio.sleep(1)
-        except KeyboardInterrupt:
-            await self.cleanup()
-
-    async def cleanup(self):
-        if self.detector:
-            await self.detector.stop_detection()
-        if self.context:
-            await self.context.close()
-        if self.browser:
-            await self.browser.close() 

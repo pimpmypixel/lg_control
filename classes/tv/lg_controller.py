@@ -4,11 +4,11 @@ import os
 from aiowebostv import WebOsClient
 
 class LGTVController:
-    def __init__(self, ip_address="192.168.1.218", storage_path='./tv_client_key.json'):
+    def __init__(self, ip_address, storage_path):
         self.ip_address = ip_address
         self.client = None
         self.key_file = storage_path
-        print('Init controller')
+        print('Init TV controller')
 
     def _load_client_key(self):
         """Load saved client key if available"""
@@ -118,45 +118,3 @@ class LGTVController:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit"""
         await self.disconnect()
-
-
-# # Example usage
-# async def main():
-#     tv_ip = "192.168.1.218"
-    
-#     print("LG TV Controller")
-#     print("===============")
-    
-#     try:
-#         async with LGTVController(tv_ip) as tv:
-#             # Get current app
-#             print("\n=== Current App ===")
-#             current_app = await tv.get_current_app()
-#             if current_app is not None:
-#                 print(f"Currently running: {current_app}")
-
-#             # Get current mute status
-#             print("\n=== Current Mute Status ===")
-#             current_mute = await tv.get_mute_status()
-#             if current_mute is not None:
-#                 print(f"Currently {'muted' if current_mute else 'unmuted'}")
-                
-#                 # Toggle mute
-#                 new_mute = not current_mute
-#                 success = await tv.set_mute(new_mute)
-#                 if success:
-#                     print(f"Successfully {'muted' if new_mute else 'unmuted'} TV")
-#                     # Wait a moment then toggle back
-#                     await asyncio.sleep(2)
-#                     await tv.set_mute(current_mute)
-#                     print(f"Restored original mute state")
-#     except Exception as e:
-#         print(f"An error occurred: {e}")
-
-# if __name__ == "__main__":
-#     try:
-#         asyncio.run(main())
-#     except KeyboardInterrupt:
-#         print("\nProgram terminated by user")
-#     except Exception as e:
-#         print(f"An error occurred: {e}") 
