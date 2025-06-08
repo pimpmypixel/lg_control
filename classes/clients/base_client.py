@@ -32,6 +32,9 @@ class BaseClient(ABC):
         )
 
         self.context = await self.browser.new_context(
+            record_video_dir="recordings/",
+            record_video_size={"width": 1280, "height": 720},
+
             user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             viewport={'width': 600, 'height': 338},  # 16:9 aspect ratio for 600px width
             permissions=['notifications'],

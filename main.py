@@ -9,6 +9,7 @@ def parse_args():
     parser.add_argument('--debug', action='store_true', default=False, help='Enable debug mode')
     parser.add_argument('--no-headless', action='store_true', default=False, help='Run in headful mode')
     parser.add_argument('--roi', action='store_true', default=False, help='Enable ROI image')
+    parser.add_argument('--audio', action='store_true', default=False, help='Enable audio')
     return parser.parse_args()
 
 app = "tv2play"
@@ -27,7 +28,7 @@ async def handle_messages(controller, args):
             detection = 'ADS'
 
         if args.debug or current_app == app:
-            success = await controller.set_mute(mute=mute)
+            # success = await controller.set_mute(mute=mute)
             message = f"-- {detection} -- Confidence: {message.data['confidence']:.2f}  -- Muted: {mute}"
         else:
             message = f"Current app: {current_app}"
