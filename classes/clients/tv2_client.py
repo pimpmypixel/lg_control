@@ -16,11 +16,11 @@ class Client(BaseClient):
         self.app = None
         self.roi_image = None
 
-    async def initialize(self, app: str, headless: bool, roi_image: bool):
+    async def initialize(self, app: str, args):
         self.app = app
         self.cookies_path = f"./storage/{self.app}.pkl"
-        self.roi_image = roi_image
-        await super().initialize(app, headless, roi_image)
+        self.roi_image = args.roi
+        await super().initialize(app, args)
         await self._start_stream()
             
     async def _handle_login(self):
@@ -53,14 +53,6 @@ class Client(BaseClient):
             # await self.page.get_by_role("button", name="Log ind").click()
             time.sleep(1)
 
-            # Save cookies after successful login
-        #     cookies = await self.context.cookies()
-        #     with open(self.cookies_path, 'wb') as f:
-        #         pickle.dump(cookies, f)
-        #         print("Saved new cookies")
-        # else:
-        #     print("Already logged in")
-
     async def _start_stream(self):
         """Start the TV2 NEWS stream and initialize logo detection."""
         time.sleep(1)
@@ -74,6 +66,7 @@ class Client(BaseClient):
             await self.page.locator('xpath=/html/body/div/div/div/div/div[3]/div[5]/div[1]/button[1]').click()
         except Exception as e:
             print(f"Failed to find mute button: {e}")
+            print('Wait one minute')
             raise
 
         # Start logo detection

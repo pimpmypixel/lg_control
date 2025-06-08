@@ -251,8 +251,8 @@ class LogoDetector:
                     #            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
                 
                     cv2.imshow('ROI Detection', display_img)
-                    cv2.waitKey(1)
 
+                cv2.waitKey(1)
                 await asyncio.sleep(self.cycle)
 
             except asyncio.CancelledError:
