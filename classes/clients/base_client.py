@@ -23,9 +23,9 @@ class BaseClient(ABC):
             headless (bool): Whether to run the browser in headless mode
             roi_image (str): Path to the ROI image for logo detection
         """
-        print(f"Init client - Headless: {headless}")
+        print(f"Init client - Headless: {headless} - ROI image: {roi_image}")
         playwright = await async_playwright().start()
-        
+
         self.browser = await playwright.chromium.launch(
             channel="chrome",
             headless=headless,
@@ -74,7 +74,7 @@ class BaseClient(ABC):
         pass
 
     async def run(self):
-        """Main run loop for the TV2 client."""
+        """Main run loop for the client."""
         try:
             while True:
                 await asyncio.sleep(1)

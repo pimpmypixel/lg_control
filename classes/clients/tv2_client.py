@@ -2,20 +2,21 @@ import asyncio
 import os
 import pickle
 import time
-from dotenv import load_dotenv
-from playwright.async_api import Playwright, async_playwright, expect
+# from dotenv import load_dotenv
+# from playwright.async_api import Playwright, async_playwright, expect
 from classes.clients.base_client import BaseClient
 from classes.detect.detect3 import LogoDetector
 
 class Client(BaseClient):
     def __init__(self):
         super().__init__()
-        self.cookies_path = './storage/cookies.pkl'
+        self.stream_url = "https://play.tv2.dk/afspil/TV2NEWS"
+        self.cookies_path = None
         self.detector = None
         self.app = None
         self.roi_image = None
 
-    async def initialize(self, app, headless, roi_image):
+    async def initialize(self, app: str, headless: bool, roi_image: bool):
         self.app = app
         self.cookies_path = f"./storage/{self.app}.pkl"
         self.roi_image = roi_image
@@ -63,7 +64,7 @@ class Client(BaseClient):
     async def _start_stream(self):
         """Start the TV2 NEWS stream and initialize logo detection."""
         time.sleep(1)
-        await self.page.goto("https://play.tv2.dk/afspil/TV2NEWS")
+        await self.page.goto(self.stream_url)
         
         print("Start stream")
         # Mute

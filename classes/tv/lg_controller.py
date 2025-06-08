@@ -63,7 +63,7 @@ class LGTVController:
         if self.client:
             try:
                 await self.client.disconnect()
-                print("Disconnected from TV")
+                print("\r Disconnected from TV")
             except Exception as e:
                 print(f"Error during disconnect: {e}")
             finally:
