@@ -2,6 +2,8 @@ import asyncio
 import cv2
 import numpy as np
 from .base_detector import BaseDetector
+from ..utils.ntp import NTPClient
+from ..utils.message_bus import Message, MessageType
 
 class TV2PlayLogoDetector(BaseDetector):
     def __init__(self, roi_image, roi_x, roi_y, roi_width, roi_height):

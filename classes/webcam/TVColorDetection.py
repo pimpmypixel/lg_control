@@ -6,19 +6,25 @@ import threading
 import queue
 import json
 import os
-import sqlite3
 import hashlib
 import uuid
 from classes.utils.ntp import NTPClient
+from classes.utils.db import DatabaseManager
+from classes.utils.session import SessionManager
 
 class TVColorDetector:
-    def __init__(self, camera_index=1):
+    def __init__(self, session_hash, camera_index=1):
         self.cap = cv2.VideoCapture(camera_index)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         
         # NTP client for time synchronization
         self.ntp_client = NTPClient()
+        
+        # Database and session management
+        self.db_manager = DatabaseManager()
+        self.session_manager = SessionManager(self.db_manager)
+        self.session_manager.session_hash = session_hash
         
         # Color tracking
         self.avg_colors = queue.Queue(maxsize=100)  # Store last 100 color readings
@@ -27,14 +33,9 @@ class TVColorDetector:
         self.detection_confidence = 0.0
         self.last_detected_roi = None
         self.start_time = time.time()
-        self.is_recording = False
         self.locked_roi = None  # Store the locked ROI once confidence is 1.0
         
-        # Database setup
-        self.storage_dir = '../../storage'
-        self.db_path = os.path.join(self.storage_dir, 'tv_colors.db')
-        self.session_hash = None
-        self.setup_database()
+        # Load saved ROI
         self.load_saved_roi()
     
     def detect_tv_rectangle(self, frame):
@@ -316,183 +317,25 @@ class TVColorDetector:
             
         return None
     
-    def setup_database(self):
-        """Initialize SQLite database and create tables if they don't exist"""
-        try:
-            # Create storage directory if it doesn't exist
-            os.makedirs(self.storage_dir, exist_ok=True)
-            
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            # Create sessions table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS sessions (
-                    session_hash TEXT PRIMARY KEY,
-                    start_date TIMESTAMP,
-                    end_date TIMESTAMP
-                )
-            ''')
-            
-            # Create colorcodes table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS colorcodes (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    session_hash TEXT,
-                    r INTEGER,
-                    g INTEGER,
-                    b INTEGER,
-                    timestamp TIMESTAMP,
-                    FOREIGN KEY (session_hash) REFERENCES sessions(session_hash)
-                )
-            ''')
-            
-            # Create ROI table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS roi_coordinates (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    session_hash TEXT,
-                    x1 INTEGER,
-                    y1 INTEGER,
-                    x2 INTEGER,
-                    y2 INTEGER,
-                    x3 INTEGER,
-                    y3 INTEGER,
-                    x4 INTEGER,
-                    y4 INTEGER,
-                    timestamp TIMESTAMP,
-                    FOREIGN KEY (session_hash) REFERENCES sessions(session_hash)
-                )
-            ''')
-            
-            conn.commit()
-            conn.close()
-            print("Database setup completed")
-        except Exception as e:
-            print(f"Error setting up database: {e}")
-    
-    def start_new_session(self):
-        """Start a new recording session"""
-        try:
-            # Generate a unique 8-character session hash
-            self.session_hash = hashlib.sha256(str(uuid.uuid4()).encode()).hexdigest()[:8]
-            
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            # Insert new session
-            cursor.execute('''
-                INSERT INTO sessions (session_hash, start_date)
-                VALUES (?, ?)
-            ''', (self.session_hash, datetime.now()))
-            
-            conn.commit()
-            conn.close()
-            print(f"New session started: {self.session_hash}")
-        except Exception as e:
-            print(f"Error starting new session: {e}")
-            self.session_hash = None
-    
-    def end_session(self):
-        """End the current recording session"""
-        if self.session_hash:
-            try:
-                conn = sqlite3.connect(self.db_path)
-                cursor = conn.cursor()
-                
-                # Update session end date
-                cursor.execute('''
-                    UPDATE sessions
-                    SET end_date = ?
-                    WHERE session_hash = ?
-                ''', (datetime.now(), self.session_hash))
-                
-                conn.commit()
-                conn.close()
-                print(f"Session ended: {self.session_hash}")
-                self.session_hash = None
-            except Exception as e:
-                print(f"Error ending session: {e}")
-    
     def save_color_data(self, rgb_values, timestamp):
         """Save color data to database"""
-        if self.session_hash and self.is_recording:
-            try:
-                conn = sqlite3.connect(self.db_path)
-                cursor = conn.cursor()
-                
-                # Insert color data
-                cursor.execute('''
-                    INSERT INTO colorcodes (session_hash, r, g, b, timestamp)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (self.session_hash, int(rgb_values[0]), int(rgb_values[1]), 
-                      int(rgb_values[2]), timestamp))
-                
-                conn.commit()
-                conn.close()
-            except Exception as e:
-                print(f"Error saving color data: {e}")
+        self.session_manager.save_color_data(rgb_values, timestamp)
     
     def save_roi(self, roi):
         """Save the ROI coordinates to database"""
-        if roi is not None and len(roi) == 4 and self.session_hash:
-            try:
-                conn = sqlite3.connect(self.db_path)
-                cursor = conn.cursor()
-                
-                # Insert ROI coordinates
-                cursor.execute('''
-                    INSERT INTO roi_coordinates 
-                    (session_hash, x1, y1, x2, y2, x3, y3, x4, y4, timestamp)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (self.session_hash, 
-                      int(roi[0][0]), int(roi[0][1]),
-                      int(roi[1][0]), int(roi[1][1]),
-                      int(roi[2][0]), int(roi[2][1]),
-                      int(roi[3][0]), int(roi[3][1]),
-                      datetime.now()))
-                
-                conn.commit()
-                conn.close()
-                print("ROI coordinates saved to database")
-            except Exception as e:
-                print(f"Error saving ROI coordinates: {e}")
+        self.session_manager.save_roi(roi)
     
     def load_saved_roi(self):
         """Load the most recent ROI coordinates from database"""
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            # Get the most recent ROI coordinates
-            cursor.execute('''
-                SELECT x1, y1, x2, y2, x3, y3, x4, y4
-                FROM roi_coordinates
-                ORDER BY timestamp DESC
-                LIMIT 1
-            ''')
-            
-            result = cursor.fetchone()
-            if result:
-                # Convert coordinates to numpy array
-                roi = np.array([
-                    [result[0], result[1]],
-                    [result[2], result[3]],
-                    [result[4], result[5]],
-                    [result[6], result[7]]
-                ], dtype=np.int32)
-                
-                self.locked_roi = roi
-                self.detection_confidence = 1.0
-                self.is_recording = True
-                print("Loaded saved ROI from database")
-            
-            conn.close()
-        except Exception as e:
-            print(f"Error loading saved ROI: {e}")
+        roi = self.session_manager.load_saved_roi()
+        if roi is not None:
+            self.locked_roi = roi
+            self.detection_confidence = 1.0
+            self.session_manager.set_recording_state(True)
+        else:
             self.locked_roi = None
             self.detection_confidence = 0.0
-            self.is_recording = False
+            self.session_manager.set_recording_state(False)
     
     def update_detection_confidence(self, current_roi):
         """Update detection confidence based on stability of ROI detection"""
@@ -523,14 +366,14 @@ class TVColorDetector:
         
         # Update confidence based on stability with faster increase
         stability_score = (1 - center_distance) * area_ratio
-        self.detection_confidence = min(1.0, self.detection_confidence + stability_score * 0.2)  # Increased from 0.1 to 0.2
+        self.detection_confidence = min(1.0, self.detection_confidence + stability_score * 0.2)
         
         self.last_detected_roi = current_roi
         
         # Lock ROI and start recording when confidence reaches 1.0
         if self.detection_confidence >= 1.0:
             self.locked_roi = current_roi
-            self.is_recording = True
+            self.session_manager.set_recording_state(True)
             print("ROI locked at full confidence. Starting color recording...")
             # Save the ROI coordinates
             self.save_roi(current_roi)
@@ -541,7 +384,7 @@ class TVColorDetector:
         self.last_detected_roi = None
         self.locked_roi = None
         self.start_time = time.time()
-        self.is_recording = False
+        self.session_manager.set_recording_state(False)
         # Remove saved ROI file if it exists
         try:
             if os.path.exists('tv_roi.json'):
@@ -583,17 +426,17 @@ class TVColorDetector:
             cv2.drawContours(display_frame, [roi_contour], -1, (255, 0, 0), 2)
         
         # Draw color information if recording
-        if self.is_recording and avg_bgr is not None and avg_rgb is not None:
-            # Color swatch
-            cv2.rectangle(display_frame, (10, 50), (100, 100), avg_bgr.tolist(), -1)
-            cv2.rectangle(display_frame, (10, 50), (100, 100), (255, 255, 255), 2)
+        # if self.session_manager.get_recording_state() and avg_bgr is not None and avg_rgb is not None:
+        #     # Color swatch
+        #     cv2.rectangle(display_frame, (10, 50), (100, 100), avg_bgr.tolist(), -1)
+        #     cv2.rectangle(display_frame, (10, 50), (100, 100), (255, 255, 255), 2)
             
-            # Color values
-            bgr_text = f"BGR: ({int(avg_bgr[0])}, {int(avg_bgr[1])}, {int(avg_bgr[2])})"
-            rgb_text = f"RGB: ({int(avg_rgb[0])}, {int(avg_rgb[1])}, {int(avg_rgb[2])})"
+        #     # Color values
+        #     bgr_text = f"BGR: ({int(avg_bgr[0])}, {int(avg_bgr[1])}, {int(avg_bgr[2])})"
+        #     rgb_text = f"RGB: ({int(avg_rgb[0])}, {int(avg_rgb[1])}, {int(avg_rgb[2])})"
             
-            cv2.putText(display_frame, bgr_text, (110, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-            cv2.putText(display_frame, rgb_text, (110, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        #     cv2.putText(display_frame, bgr_text, (110, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        #     cv2.putText(display_frame, rgb_text, (110, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         
         return display_frame
     
@@ -611,7 +454,6 @@ class TVColorDetector:
         print("- Press 'q' to quit")
         
         cv2.namedWindow('TV Color Detection')
-        self.start_new_session()
         last_ntp_sync = time.time()
         
         try:
@@ -634,7 +476,7 @@ class TVColorDetector:
                 
                 # Calculate average color if we're recording
                 avg_bgr, avg_rgb = None, None
-                if self.is_recording and roi_contour is not None:
+                if self.session_manager.get_recording_state() and roi_contour is not None:
                     avg_bgr, avg_rgb = self.calculate_average_color(frame, roi_contour)
                     
                     # Store color data with timestamp
@@ -674,29 +516,55 @@ class TVColorDetector:
                     print("NTP sync initiated...")
         
         finally:
-            # Cleanup
-            self.cap.release()
-            cv2.destroyAllWindows()
-            
-            # End session
-            self.end_session()
-    
-    def cleanup(self):
+            self.cleanup()
+
+    async def cleanup(self):
         """Clean up resources"""
-        if self.cap is not None:
-            self.cap.release()
-        cv2.destroyAllWindows()
-        if self.ntp_client:
-            self.ntp_client.cleanup()
-        if self.db_conn:
-            self.db_conn.close()
+        try:
+            # Release webcam
+            if hasattr(self, 'cap') and self.cap is not None:
+                self.cap.release()
+                print("Webcam released")
+            
+            # Close all OpenCV windows
+            cv2.destroyAllWindows()
+            print("OpenCV windows closed")
+            
+            # Clear the color queue
+            while not self.avg_colors.empty():
+                try:
+                    self.avg_colors.get_nowait()
+                except queue.Empty:
+                    break
+            
+            # Reset detection state
+            self.detection_confidence = 0.0
+            self.last_detected_roi = None
+            self.locked_roi = None
+            
+            print("TV Color Detector cleanup completed")
+            
+        except Exception as e:
+            print(f"Error during cleanup: {e}")
 
 if __name__ == "__main__":
-    # Initialize and run the detector
+    # Initialize the detector
     detector = TVColorDetector()
+    
     try:
+        # Start a new session
+        detector.session_manager.start_new_session()
+        print("Started new recording session")
+        
+        # Run the detector
         detector.run()
+        
     except KeyboardInterrupt:
         print("\nStopping color detection...")
     finally:
+        # End the session
+        detector.session_manager.end_session()
+        print("Ended recording session")
+        
+        # Cleanup
         detector.cleanup()
