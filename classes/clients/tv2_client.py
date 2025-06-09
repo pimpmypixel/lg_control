@@ -1,11 +1,7 @@
-import asyncio
 import os
-import pickle
 import time
-# from dotenv import load_dotenv
-# from playwright.async_api import Playwright, async_playwright, expect
 from classes.clients.base_client import BaseClient
-from classes.detect.detect3 import LogoDetector
+from classes.detect.detect_tv2_play import LogoDetector
 
 class Client(BaseClient):
     def __init__(self):
@@ -49,7 +45,7 @@ class Client(BaseClient):
 
     async def _is_video_playing(self, video_selector):
         """Check if video is playing by examining the paused property"""
-        is_paused = self.page.evaluate(f"""
+        is_paused =await self.page.evaluate(f"""
             () => {{
                 const video = document.querySelector('{video_selector}');
                 return video ? video.paused : null;
@@ -98,8 +94,6 @@ class Client(BaseClient):
             raise
 
         # Start logo detection
-        print("Initializing logo detector...")
         self.detector = LogoDetector(roi_image=self.roi_image, roi_x=30, roi_y=10, roi_width=25, roi_height=25)
-        print("Starting detection...")
         await self.detector.start_detection(self.page)
         print("Detection started successfully")

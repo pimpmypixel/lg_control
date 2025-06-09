@@ -31,10 +31,10 @@ async def handle_messages(tv, args):
 
         if not args.no_tv or current_app == app:
             success = await tv.set_mute(mute = mute)
-            status = f"-- {detection} -- Confidence: {message.data['confidence']:.2f}  -- Muted: {mute}"
+            # status = f"-- {detection} -- Confidence: {message.data['confidence']:.2f}  -- Muted: {mute}"
         # else:
         #     status = f"\rCurrent app: {current_app}"
-        print(status, end='\r', flush=True)
+        # print(status, end='\r', flush=True)
 
 async def main():
     args = parse_args()
