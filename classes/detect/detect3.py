@@ -147,10 +147,12 @@ class LogoDetector:
         """Main detection loop with balanced confidence reporting"""
         consecutive_detections = 0
         consecutive_no_detections = 0
+        print("Starting detection loop...")
         
         while self.running:
             try:
                 # Take screenshot
+                # print("Taking screenshot...", end='\r', flush=True)
                 screenshot = await page.screenshot()
                 img = Image.open(io.BytesIO(screenshot))
                 img_np = np.array(img)
@@ -224,39 +226,32 @@ class LogoDetector:
                         logo_detected, logo_confidence, colored_pixels, state_changed
                     )
                 
-                # Optional: Print balanced debug info
-                # status = "TV" if logo_detected else "ADS"
-                # print(f"--{status} (conf: {logo_confidence:.2f}, running: {self.confidence:.2f}, "
-                #       f"pixels: {colored_pixels}, frames: {self.frames_since_state_change})", 
-                #       end='\r', flush=True)
+                # Print debug info
+                status = "TV" if logo_detected else "ADS"
+                print(f"--{status} (conf: {logo_confidence:.2f}, running: {self.confidence:.2f}, "
+                      f"pixels: {colored_pixels}, frames: {self.frames_since_state_change})", 
+                      end='\r', flush=True)
                 
                 if self.roi_image:
-                    # Visualization - use cropped image
+                    # Create a separate display image for visualization
                     display_img = cropped_img.copy()
                     
-                    # Draw ROI rectangle on cropped image
+                    # Draw ROI rectangle on display image
                     color = (0, 255, 0) if logo_detected else (0, 0, 255)
                     cv2.rectangle(display_img, 
                                 (adj_roi_x, adj_roi_y),
                                 (adj_roi_x + self.roi_width, adj_roi_y + self.roi_height),
                                 color, 1)
                     
-                    # Add balanced confidence visualization
-                    # confidence_text = f"Instant: {logo_confidence:.2f} | Running: {self.confidence:.2f}"
-                    # status_text = f"Status: {status} | Frames: {self.frames_since_state_change}"
-                    
-                    # cv2.putText(display_img, confidence_text, (10, 20), 
-                    #            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
-                    # cv2.putText(display_img, status_text, (10, 40), 
-                    #            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
-                
+                    # Show the display image (no debug text)
                     cv2.imshow('ROI Detection', display_img)
 
                 cv2.waitKey(1)
                 await asyncio.sleep(self.cycle)
 
             except asyncio.CancelledError:
+                print("\nDetection loop cancelled")
                 break
             except Exception as e:
-                print(f"Error in detection loop: {e}")
+                print(f"\nError in detection loop: {e}")
                 await asyncio.sleep(1)
