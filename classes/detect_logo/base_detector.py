@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from ..utils.message_bus import MessageBus, Message, MessageType
 
 class BaseDetector(ABC):
-    def __init__(self, roi_image, roi_x, roi_y, roi_width, roi_height):
+    def __init__(self, roi_image: bool, roi_x, roi_y, roi_width, roi_height):
         self.cycle = 0.5
         self.roi_image = roi_image
         self.roi_x = roi_x
@@ -28,7 +28,7 @@ class BaseDetector(ABC):
         self.consecutive_detections = 0
         self.consecutive_no_detections = 0
         self.render_frames_since_state_change = 0
-        self.cropped_img = None  # Store the cropped image for visualization
+        self.full_screenshot = None  # Store the full screenshot for visualization
 
         # Balanced confidence tracking
         self.confidence = 0.5  # Start at neutral confidence
@@ -38,7 +38,7 @@ class BaseDetector(ABC):
         self.min_confidence = 0.0
         
         # Initialize visualization window if ROI image is provided
-        if self.roi_image is not None:
+        if self.roi_image is not False:
             cv2.namedWindow('ROI Detection', cv2.WINDOW_NORMAL)
             cv2.resizeWindow('ROI Detection', 400, 300)
             cv2.waitKey(1)
@@ -66,28 +66,19 @@ class BaseDetector(ABC):
         img = Image.open(io.BytesIO(screenshot))
         img_np = np.array(img)
         # Convert RGB to BGR for OpenCV
-        return cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
+        self.full_screenshot = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
+        return self.full_screenshot
+    
+    async def average_color(self, img_np):
+        avg_bgr = np.mean(img_np, axis=(0, 1))  # Average across both height and width
+        avg_rgb = avg_bgr[::-1]  # Convert BGR to RGB
+        return int(avg_rgb[0]), int(avg_rgb[1]), int(avg_rgb[2])
+    
 
     async def make_roi(self, img_np):
-        # Extract ROI with buffer
-        buffer = 80
-        img_height, img_width = img_np.shape[:2]
-        
-        crop_x1 = max(0, self.roi_x - buffer)
-        crop_y1 = max(0, self.roi_y - buffer)
-        crop_x2 = min(img_width, self.roi_x + self.roi_width + buffer)
-        crop_y2 = min(img_height, self.roi_y + self.roi_height + buffer)
-        
-        # Crop the image around ROI
-        self.cropped_img = img_np[crop_y1:crop_y2, crop_x1:crop_x2]
-        
-        # Adjust ROI coordinates relative to cropped image
-        self.adj_roi_x = self.roi_x - crop_x1
-        self.adj_roi_y = self.roi_y - crop_y1
-        
-        # Extract ROI from cropped image
-        return self.cropped_img[self.adj_roi_y:self.adj_roi_y+self.roi_height, 
-                        self.adj_roi_x:self.adj_roi_x+self.roi_width]
+        # Extract ROI directly from the full image
+        return img_np[self.roi_y:self.roi_y+self.roi_height, 
+                     self.roi_x:self.roi_x+self.roi_width]
 
     async def start_detection(self, page):
         """Start the detection process"""
@@ -118,13 +109,11 @@ class BaseDetector(ABC):
         if self.logo_detected:
             # When logo is detected, increase confidence more if the detection confidence is high
             confidence_factor = min(1.0, logo_confidence * 1.5)  # Amplify high confidence detections
-            self.confidence = min(self.max_confidence, 
-                                self.confidence + (self.confidence_increment * confidence_factor))
+            self.confidence = min(self.max_confidence, self.confidence + (self.confidence_increment * confidence_factor))
         else:
             # When no logo is detected, decrease confidence more if the no-logo confidence is high
             confidence_factor = min(1.0, logo_confidence * 1.5)  # Amplify high confidence no-detections
-            self.confidence = max(self.min_confidence, 
-                                self.confidence - (self.confidence_decrement * confidence_factor))
+            self.confidence = max(self.min_confidence, self.confidence - (self.confidence_decrement * confidence_factor))
         
         # Track state changes and frame counts
         state_changed = False
@@ -162,16 +151,16 @@ class BaseDetector(ABC):
                 self.logo_detected, logo_confidence, colored_pixels, state_changed
             )
 
-    async def render_roi_image(self):
-        if self.roi_image is not None and self.cropped_img is not None:
-            # Create a separate display image for visualization
-            display_img = self.cropped_img.copy()
+    async def render_image(self):
+        if self.roi_image:  # Using boolean flag correctly
+            # Create a copy of the full screenshot for visualization
+            display_img = self.full_screenshot.copy()
             
             # Draw ROI rectangle on display image
             color = (0, 255, 0) if self.logo_detected else (0, 0, 255)
             cv2.rectangle(display_img, 
-                        (self.adj_roi_x, self.adj_roi_y),
-                        (self.adj_roi_x + self.roi_width, self.adj_roi_y + self.roi_height),
+                        (self.roi_x, self.roi_y),
+                        (self.roi_x + self.roi_width, self.roi_y + self.roi_height),
                         color, 1)
             
             # Show the display image

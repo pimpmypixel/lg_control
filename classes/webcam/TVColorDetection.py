@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-import ntplib
 import time
 from datetime import datetime
 import threading
@@ -10,6 +9,7 @@ import os
 import sqlite3
 import hashlib
 import uuid
+from classes.utils.ntp import NTPClient
 
 class TVColorDetector:
     def __init__(self, camera_index=1):
@@ -18,9 +18,7 @@ class TVColorDetector:
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         
         # NTP client for time synchronization
-        self.ntp_client = ntplib.NTPClient()
-        self.time_offset = 0
-        self.sync_ntp()
+        self.ntp_client = NTPClient()
         
         # Color tracking
         self.avg_colors = queue.Queue(maxsize=100)  # Store last 100 color readings
@@ -37,23 +35,7 @@ class TVColorDetector:
         self.db_path = os.path.join(self.storage_dir, 'tv_colors.db')
         self.session_hash = None
         self.setup_database()
-        
-        # Try to load saved ROI
         self.load_saved_roi()
-        
-    def sync_ntp(self):
-        """Synchronize with NTP server"""
-        try:
-            response = self.ntp_client.request('pool.ntp.org', version=3)
-            self.time_offset = response.offset
-            print(f"NTP sync successful. Offset: {self.time_offset:.3f}s")
-        except Exception as e:
-            print(f"NTP sync failed: {e}")
-            self.time_offset = 0
-    
-    def get_ntp_time(self):
-        """Get NTP synchronized timestamp"""
-        return time.time() + self.time_offset
     
     def detect_tv_rectangle(self, frame):
         """Detect TV/rectangle using edge detection, contour finding, and 16:9 aspect ratio validation"""
@@ -629,11 +611,7 @@ class TVColorDetector:
         print("- Press 'q' to quit")
         
         cv2.namedWindow('TV Color Detection')
-        
-        # Start new session
         self.start_new_session()
-        
-        # Periodic NTP sync
         last_ntp_sync = time.time()
         
         try:
@@ -662,11 +640,11 @@ class TVColorDetector:
                     # Store color data with timestamp
                     if avg_rgb is not None:
                         # Save to database
-                        self.save_color_data(avg_rgb, self.get_ntp_time())
+                        self.save_color_data(avg_rgb, self.ntp_client.get_ntp_time())
                         
                         # Also keep in memory queue
                         color_data = {
-                            'timestamp': self.get_ntp_time(),
+                            'timestamp': self.ntp_client.get_ntp_time(),
                             'rgb': avg_rgb,
                             'bgr': avg_bgr
                         }
@@ -682,11 +660,8 @@ class TVColorDetector:
                 
                 # Draw information overlay and get display frame
                 display_frame = self.draw_info(frame, avg_bgr, avg_rgb, roi_contour)
-                
-                # Display frame
                 cv2.imshow('TV Color Detection', display_frame)
                 
-                # Handle keyboard input
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord('q'):
                     break
@@ -695,7 +670,7 @@ class TVColorDetector:
                     self.reset_detection()
                 elif key == ord('s'):
                     # Sync NTP
-                    threading.Thread(target=self.sync_ntp, daemon=True).start()
+                    threading.Thread(target=self.ntp_client.sync_ntp, daemon=True).start()
                     print("NTP sync initiated...")
         
         finally:
@@ -712,7 +687,7 @@ class TVColorDetector:
             self.cap.release()
         cv2.destroyAllWindows()
         if self.ntp_client:
-            self.ntp_client.close()
+            self.ntp_client.cleanup()
         if self.db_conn:
             self.db_conn.close()
 

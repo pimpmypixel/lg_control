@@ -1,9 +1,8 @@
 import os
 import time
-from classes.clients.base_client import BaseClient
-from classes.detect.detect_tv2_play import TV2Detector
+from classes.playwright.base_client import BaseClient
 
-class Client(BaseClient):
+class TV2Client(BaseClient):
     def __init__(self):
         super().__init__()
         self.stream_url = "https://play.tv2.dk/afspil/TV2NEWS"
@@ -16,10 +15,7 @@ class Client(BaseClient):
         print(f"Initializing client for app: {app}")
         self.app = app
         self.cookies_path = f"./storage/{self.app}.pkl"
-        self.roi_image = args.roi
         await super().initialize(app, args)
-        print("Starting stream...")
-        await self._start_stream()
             
     async def _handle_login(self):
         """Handle TV2-specific login process."""
@@ -54,12 +50,10 @@ class Client(BaseClient):
         return is_paused is False  
 
     async def _start_stream(self):
-        """Start the TV2 NEWS stream and initialize logo detection."""
-        print("Navigating to stream URL...")
+        print("Navigating to stream URL")
         await self.page.goto(self.stream_url)
-        
         print("Waiting for stream to load...")
-        time.sleep(2)  # Increased wait time for stream to load
+        time.sleep(2)
         
         # Mute
         try:
@@ -74,7 +68,6 @@ class Client(BaseClient):
             time.sleep(60)
             raise
 
-        
         if await self._is_video_playing("video"):
             print("Video is playing")
         else:
@@ -82,9 +75,7 @@ class Client(BaseClient):
 
         # Play
         try:
-            print("Looking for play button...")
             await self.page.locator('xpath=/html/body/div/div/div/div/div[3]/div[5]/button[1]').wait_for(timeout=1000)
-            print("Found play button, clicking...")
             await self.page.locator('xpath=/html/body/div/div/div/div/div[3]/div[5]/button[1]').click()
             print("Stream playing")
         except Exception as e:
@@ -93,7 +84,4 @@ class Client(BaseClient):
             time.sleep(60)
             raise
 
-        # Start logo detection
-        self.detector = TV2Detector(roi_image=self.roi_image, roi_x=30, roi_y=10, roi_width=25, roi_height=25)
-        await self.detector.start_detection(self.page)
-        print("Detection started successfully")
+        return self.page

@@ -1,8 +1,9 @@
 import asyncio
 import argparse
-from classes.clients.tv2_client import Client
+from classes.playwright.tv2_client import TV2Client
 from classes.utils.message_bus import MessageBus, MessageType
 from classes.tv.lg_controller import LGTVController
+from classes.detect_logo.tv2_play_logo import TV2PlayLogoDetector
 
 def parse_args():
     parser = argparse.ArgumentParser(description='TV2 Client with configurable options')
@@ -38,10 +39,12 @@ async def handle_messages(tv, args):
 
 async def main():
     args = parse_args()
+    page = None
     if args.debug is True:
         print('Debugging mode')
     try:
-        client = Client()
+        client = TV2Client()
+        detector = TV2PlayLogoDetector(roi_image=args.roi, roi_x=30, roi_y=10, roi_width=25, roi_height=25)
         tv = None
         if args.no_tv is False:
             tv = LGTVController(ip_address = tv_ip, storage_path = storage_path)
@@ -55,6 +58,10 @@ async def main():
         if args.no_tv or current_app == app:
             print(f"Currently running: {current_app}")
             await client.initialize(app, args)
+            page = await client._start_stream()
+            # Start logo detection
+            await detector.start_detection(page)
+            print("Detection started successfully")
             await client.run()
         else:
             print(f"Expected app {app} but found {current_app}")

@@ -3,8 +3,8 @@ import cv2
 import numpy as np
 from .base_detector import BaseDetector
 
-class TV2Detector(BaseDetector):
-    def __init__(self,roi_image, roi_x, roi_y, roi_width, roi_height):
+class TV2PlayLogoDetector(BaseDetector):
+    def __init__(self, roi_image, roi_x, roi_y, roi_width, roi_height):
         super().__init__(roi_image, roi_x, roi_y, roi_width, roi_height)
         # Red/blue color detection parameters (HSV ranges)
         # Adjusted for blue logo detection since the logo appears blue
@@ -100,12 +100,30 @@ class TV2Detector(BaseDetector):
         final_confidence = (pixel_confidence * 0.4) + (max_shape_confidence * 0.6)
         return final_confidence, combined_mask, colored_pixel_count
 
+    async def render_roi_image(self):
+        if self.roi_image:  # Using boolean flag correctly
+            # Create a copy of the full screenshot for visualization
+            display_img = self.full_screenshot.copy()
+            
+            # Draw ROI rectangle on display image
+            color = (0, 255, 0) if self.logo_detected else (0, 0, 255)
+            cv2.rectangle(display_img, 
+                        (self.roi_x, self.roi_y),
+                        (self.roi_x + self.roi_width, self.roi_y + self.roi_height),
+                        color, 1)
+            
+            # Show the display image
+            cv2.imshow('ROI Detection', display_img)
+            cv2.waitKey(1)  # Add this to ensure the window updates
+
     async def _detect_loop(self, page):
         print("Starting detection loop...")
         
         while self.running:
             try:
                 img_np = await self.make_screenshot(page)
+                
+                r, g, b = await self.average_color(img_np)
                 roi = await self.make_roi(img_np)
                 
                 # Detect logo
@@ -118,7 +136,7 @@ class TV2Detector(BaseDetector):
                       f"pixels: {colored_pixels}, frames: {self.frames_since_state_change})", 
                       end='\r', flush=True)
                 
-                await self.render_roi_image()
+                await self.render_image()
                 await asyncio.sleep(self.cycle)
 
             except asyncio.CancelledError:
@@ -127,3 +145,17 @@ class TV2Detector(BaseDetector):
             except Exception as e:
                 print(f"\nError in detection loop: {e}")
                 await asyncio.sleep(1)
+
+    async def stop_detection(self):
+        """Stop the detection process"""
+        try:
+            self.running = False
+            if self.detection_task:
+                self.detection_task.cancel()
+                try:
+                    await self.detection_task
+                except (asyncio.CancelledError, Exception):
+                    pass
+            cv2.destroyAllWindows()
+        except Exception:
+            pass
