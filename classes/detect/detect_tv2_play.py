@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 from .base_detector import BaseDetector
 
-class LogoDetector(BaseDetector):
+class TV2Detector(BaseDetector):
     def __init__(self,roi_image, roi_x, roi_y, roi_width, roi_height):
         super().__init__(roi_image, roi_x, roi_y, roi_width, roi_height)
         # Red/blue color detection parameters (HSV ranges)

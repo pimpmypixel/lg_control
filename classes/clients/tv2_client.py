@@ -1,7 +1,7 @@
 import os
 import time
 from classes.clients.base_client import BaseClient
-from classes.detect.detect_tv2_play import LogoDetector
+from classes.detect.detect_tv2_play import TV2Detector
 
 class Client(BaseClient):
     def __init__(self):
@@ -94,6 +94,6 @@ class Client(BaseClient):
             raise
 
         # Start logo detection
-        self.detector = LogoDetector(roi_image=self.roi_image, roi_x=30, roi_y=10, roi_width=25, roi_height=25)
+        self.detector = TV2Detector(roi_image=self.roi_image, roi_x=30, roi_y=10, roi_width=25, roi_height=25)
         await self.detector.start_detection(self.page)
         print("Detection started successfully")
