@@ -46,9 +46,31 @@ class LogoDetector(BaseDetector):
         
         # Enhanced confidence calculation for better balance
         if colored_pixel_count < self.min_red_pixels:
-            # Even when no logo detected, provide meaningful confidence based on pixel count
-            weak_confidence = min(0.4, colored_pixel_count / self.min_red_pixels * 0.4)
-            return weak_confidence, combined_mask, colored_pixel_count
+            # Calculate no-logo confidence based on pixel count and distribution
+            # Lower pixel count = higher confidence of no logo
+            no_logo_confidence = 1.0 - min(1.0, colored_pixel_count / self.min_red_pixels)
+            
+            # Add shape analysis for no-logo case
+            contours, _ = cv2.findContours(combined_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            shape_confidence = 0.0
+            
+            if contours:
+                # Check if any contours are too small or irregular to be the logo
+                for contour in contours:
+                    area = cv2.contourArea(contour)
+                    if area < self.min_contour_area:
+                        shape_confidence += 0.2  # Small contours increase no-logo confidence
+                    else:
+                        # Check circularity
+                        perimeter = cv2.arcLength(contour, True)
+                        if perimeter > 0:
+                            circularity = 4 * np.pi * area / (perimeter * perimeter)
+                            if circularity < 0.5:  # Less circular = more likely not logo
+                                shape_confidence += 0.3
+            
+            # Combine pixel and shape confidence for no-logo case
+            final_confidence = (no_logo_confidence * 0.7) + (min(1.0, shape_confidence) * 0.3)
+            return final_confidence, combined_mask, colored_pixel_count
         
         # Find contours in the mask to check for circular shapes
         contours, _ = cv2.findContours(combined_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -97,7 +119,6 @@ class LogoDetector(BaseDetector):
                       end='\r', flush=True)
                 
                 await self.render_roi_image()
-                # cv2.waitKey(1)
                 await asyncio.sleep(self.cycle)
 
             except asyncio.CancelledError:

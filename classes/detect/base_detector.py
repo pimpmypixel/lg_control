@@ -110,15 +110,21 @@ class BaseDetector(ABC):
             pass
 
     async def publish_change(self, logo_confidence, colored_pixels): 
+        # Update logo detection state based on confidence threshold
         self.logo_detected = logo_confidence > self.detection_threshold
                 
         # Update running confidence with balanced smoothing
+        # Use the actual confidence value to influence the running confidence
         if self.logo_detected:
+            # When logo is detected, increase confidence more if the detection confidence is high
+            confidence_factor = min(1.0, logo_confidence * 1.5)  # Amplify high confidence detections
             self.confidence = min(self.max_confidence, 
-                                self.confidence + self.confidence_increment)
+                                self.confidence + (self.confidence_increment * confidence_factor))
         else:
+            # When no logo is detected, decrease confidence more if the no-logo confidence is high
+            confidence_factor = min(1.0, logo_confidence * 1.5)  # Amplify high confidence no-detections
             self.confidence = max(self.min_confidence, 
-                                self.confidence - self.confidence_decrement)
+                                self.confidence - (self.confidence_decrement * confidence_factor))
         
         # Track state changes and frame counts
         state_changed = False
@@ -133,6 +139,7 @@ class BaseDetector(ABC):
             self.last_detection_state = self.logo_detected
             self.frames_since_state_change = 0
         else:
+            self.frames_since_state_change += 1
             self.render_frames_since_state_change += 1
         
         # Use consecutive detection logic for stability
@@ -148,7 +155,6 @@ class BaseDetector(ABC):
             if self.consecutive_no_detections >= 2:  # Require 2 consecutive non-detections
                 should_publish = True
         
-
         # Publish updates: on state changes OR periodic continuous updates
         if should_publish and (state_changed or 
                                 self.frames_since_state_change % self.continuous_update_interval == 0):
